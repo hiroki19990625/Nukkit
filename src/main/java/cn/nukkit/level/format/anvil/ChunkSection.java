@@ -1,16 +1,15 @@
 package cn.nukkit.level.format.anvil;
 
 import cn.nukkit.block.Block;
+import cn.nukkit.level.GlobalBlockPalette;
 import cn.nukkit.level.format.anvil.util.BlockStorage;
 import cn.nukkit.level.format.anvil.util.NibbleArray;
 import cn.nukkit.level.format.generic.EmptyChunkSection;
 import cn.nukkit.nbt.tag.CompoundTag;
-import cn.nukkit.utils.Binary;
-import cn.nukkit.utils.ThreadCache;
-import cn.nukkit.utils.Utils;
-import cn.nukkit.utils.Zlib;
+import cn.nukkit.utils.*;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 
 /**
@@ -324,9 +323,46 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
             byte[] data = storage.getBlockData();
             byte[] merged = new byte[ids.length + data.length];
 
-            System.arraycopy(ids, 0, merged, 0, ids.length);
-            System.arraycopy(data, 0, merged, ids.length, data.length);
-            return merged;
+            BinaryStream stream = new BinaryStream();
+            int numberOfStores = 1;//TODO Support Multi Layer...
+            stream.putByte((byte) numberOfStores);
+
+            ArrayList<Integer> palettes = new ArrayList<Integer>(10);
+            byte[] blocks = this.getIdArray();
+            byte[] metas = this.getDataArray();
+            byte[] indexes = new byte[blocks.length];
+            for (int i = 0; i < numberOfStores; i++) {
+                palettes.clear();
+
+                stream.putByte((byte) ((8 << 1) | 1));
+
+                int index = 0;
+                int pHash = 0xffffffff;
+                for (int bl = 0; bl < blocks.length; bl++) {
+                    int bid = blocks[bl];
+                    byte meta = metas[bl];
+                    int hash = GlobalBlockPalette.getOrCreateRuntimeId(bid, meta);
+                    if (hash != pHash) {
+                        index = palettes.indexOf(hash);
+                        if (index == -1) {
+                            palettes.add(hash);
+                        }
+                        index = palettes.indexOf(hash);
+                    }
+
+                    indexes[bl] = (byte) index;
+                    pHash = hash;
+                }
+
+                stream.put(indexes);
+
+                stream.putVarInt(palettes.size());
+                for (int val : palettes) {
+                    stream.putVarInt(val);
+                }
+            }
+
+            return stream.getBuffer();
         }
     }
 
