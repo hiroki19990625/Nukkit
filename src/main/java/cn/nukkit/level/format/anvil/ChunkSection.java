@@ -329,7 +329,7 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
 
             ArrayList<Integer> palettes = new ArrayList<Integer>(10);
             byte[] blocks = this.getIdArray();
-            byte[] metas = this.getDataArray();
+            NibbleArray metas = new NibbleArray(this.getDataArray());
             byte[] indexes = new byte[blocks.length];
             for (int i = 0; i < numberOfStores; i++) {
                 palettes.clear();
@@ -340,7 +340,7 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
                 int pHash = 0xffffffff;
                 for (int bl = 0; bl < blocks.length; bl++) {
                     int bid = blocks[bl];
-                    byte meta = metas[bl];
+                    byte meta = metas.get(bl);
                     int hash = GlobalBlockPalette.getOrCreateRuntimeId(bid, meta);
                     if (hash != pHash) {
                         index = palettes.indexOf(hash);
