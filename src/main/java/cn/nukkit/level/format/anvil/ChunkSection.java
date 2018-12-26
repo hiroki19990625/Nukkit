@@ -321,7 +321,6 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
 
             byte[] ids = storage.getBlockIds();
             byte[] data = storage.getBlockData();
-            byte[] merged = new byte[ids.length + data.length];
 
             BinaryStream stream = new BinaryStream();
             int numberOfStores = 1;//TODO Support Multi Layer...
@@ -339,8 +338,8 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
                 int index = 0;
                 int pHash = 0xffffffff;
                 for (int bl = 0; bl < blocks.length; bl++) {
-                    int bid = blocks[bl];
-                    byte meta = metas.get(bl);
+                    byte bid = blocks[bl];
+                    byte meta = 0;// metas.get(bl);
                     int hash = GlobalBlockPalette.getOrCreateRuntimeId(bid, meta);
                     if (hash != pHash) {
                         index = palettes.indexOf(hash);
