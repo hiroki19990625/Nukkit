@@ -11,7 +11,6 @@ import cn.nukkit.utils.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
 
 /**
  * author: MagicDroidX
@@ -328,6 +327,7 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
             stream.putByte((byte) numberOfStores);
 
             ArrayList<Integer> palettes = new ArrayList<>(4096);
+            BinaryStream palettesStream = new BinaryStream();
             byte[] blocks = this.getIdArray();
             NibbleArray metas = new NibbleArray(this.getDataArray());
             byte[] indexes = new byte[blocks.length];
@@ -344,6 +344,7 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
                     index = palettes.indexOf(hash);
                     if (index == -1) {
                         palettes.add(hash);
+                        palettesStream.putVarInt(hash);
                     }
                     index = palettes.indexOf(hash);
                 }
@@ -355,10 +356,7 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
             stream.put(indexes);
 
             stream.putVarInt(palettes.size());
-            Iterator<Integer> it = palettes.iterator();
-            while (it.hasNext()) {
-                stream.putVarInt(it.next());
-            }
+            stream.put(palettesStream.getBuffer());
 
             return stream.getBuffer();
         }

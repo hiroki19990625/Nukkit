@@ -1,5 +1,6 @@
 package cn.nukkit.level.format.anvil;
 
+import cn.nukkit.Server;
 import cn.nukkit.blockentity.BlockEntity;
 import cn.nukkit.blockentity.BlockEntitySpawnable;
 import cn.nukkit.level.Level;
@@ -112,74 +113,85 @@ public class Anvil extends BaseLevelProvider {
 
     @Override
     public AsyncTask requestChunkTask(int x, int z) throws ChunkException {
-        Chunk chunk = (Chunk) this.getChunk(x, z, false);
-        if (chunk == null) {
-            throw new ChunkException("Invalid Chunk Set");
-        }
+        AsyncTask async = new AsyncTask() {
+            Chunk chunk;
 
-        long timestamp = chunk.getChanges();
-
-        byte[] blockEntities = new byte[0];
-
-        if (!chunk.getBlockEntities().isEmpty()) {
-            List<CompoundTag> tagList = new ArrayList<>();
-
-            for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                if (blockEntity instanceof BlockEntitySpawnable) {
-                    tagList.add(((BlockEntitySpawnable) blockEntity).getSpawnCompound());
+            @Override
+            public void onRun() {
+                chunk = (Chunk) getChunk(x, z, false);
+                if (chunk == null) {
+                    throw new ChunkException("Invalid Chunk Set");
                 }
+
+                byte[] blockEntities = new byte[0];
+
+                if (!chunk.getBlockEntities().isEmpty()) {
+                    List<CompoundTag> tagList = new ArrayList<>();
+
+                    for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                        if (blockEntity instanceof BlockEntitySpawnable) {
+                            tagList.add(((BlockEntitySpawnable) blockEntity).getSpawnCompound());
+                        }
+                    }
+
+                    try {
+                        blockEntities = NBTIO.write(tagList, ByteOrder.LITTLE_ENDIAN, true);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+
+                Map<Integer, Integer> extra = chunk.getBlockExtraDataArray();
+                BinaryStream extraData;
+                if (!extra.isEmpty()) {
+                    extraData = new BinaryStream();
+                    extraData.putVarInt(extra.size());
+                    for (Map.Entry<Integer, Integer> entry : extra.entrySet()) {
+                        extraData.putVarInt(entry.getKey());
+                        extraData.putLShort(entry.getValue());
+                    }
+                } else {
+                    extraData = null;
+                }
+
+                BinaryStream stream = ThreadCache.binaryStream.get().reset();
+                int count = 0;
+                cn.nukkit.level.format.ChunkSection[] sections = chunk.getSections();
+                for (int i = sections.length - 1; i >= 0; i--) {
+                    if (!sections[i].isEmpty()) {
+                        count = i + 1;
+                        break;
+                    }
+                }
+                stream.putByte((byte) count);
+                for (int i = 0; i < count; i++) {
+                    stream.putByte((byte) 8);
+                    stream.put(sections[i].getBytes());
+                }
+                for (byte height : chunk.getHeightMapArray()) {
+                    stream.putByte(height);
+                }
+                stream.put(PAD_256);
+                stream.put(chunk.getBiomeIdArray());
+                stream.putByte((byte) 0);
+                if (extraData != null) {
+                    stream.put(extraData.getBuffer());
+                } else {
+                    stream.putVarInt(0);
+                }
+                stream.put(blockEntities);
+
+                setResult(stream.getBuffer());
             }
 
-            try {
-                blockEntities = NBTIO.write(tagList, ByteOrder.LITTLE_ENDIAN, true);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+            @Override
+            public void onCompletion(Server server) {
+                long timestamp = chunk.getChanges();
+                getLevel().chunkRequestCallback(timestamp, x, z, (byte[]) getResult());
             }
-        }
+        };
 
-        Map<Integer, Integer> extra = chunk.getBlockExtraDataArray();
-        BinaryStream extraData;
-        if (!extra.isEmpty()) {
-            extraData = new BinaryStream();
-            extraData.putVarInt(extra.size());
-            for (Map.Entry<Integer, Integer> entry : extra.entrySet()) {
-                extraData.putVarInt(entry.getKey());
-                extraData.putLShort(entry.getValue());
-            }
-        } else {
-            extraData = null;
-        }
-
-        BinaryStream stream = ThreadCache.binaryStream.get().reset();
-        int count = 0;
-        cn.nukkit.level.format.ChunkSection[] sections = chunk.getSections();
-        for (int i = sections.length - 1; i >= 0; i--) {
-            if (!sections[i].isEmpty()) {
-                count = i + 1;
-                break;
-            }
-        }
-        stream.putByte((byte) count);
-        for (int i = 0; i < count; i++) {
-            stream.putByte((byte) 8);
-            stream.put(sections[i].getBytes());
-        }
-        for (byte height : chunk.getHeightMapArray()) {
-            stream.putByte(height);
-        }
-        stream.put(PAD_256);
-        stream.put(chunk.getBiomeIdArray());
-        stream.putByte((byte) 0);
-        if (extraData != null) {
-            stream.put(extraData.getBuffer());
-        } else {
-            stream.putVarInt(0);
-        }
-        stream.put(blockEntities);
-
-        this.getLevel().chunkRequestCallback(timestamp, x, z, stream.getBuffer());
-
-        return null;
+        return async;
     }
 
     @Override
