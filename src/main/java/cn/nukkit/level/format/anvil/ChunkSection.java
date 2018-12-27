@@ -11,6 +11,7 @@ import cn.nukkit.utils.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Iterator;
 
 /**
  * author: MagicDroidX
@@ -71,7 +72,8 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
     }
 
     private static int getAnvilIndex(int x, int y, int z) {
-        return (y << 8) + (z << 4) + x;
+        return (x << 8) + (z << 4) + y;
+        //return (y << 8) + (z << 4) + x;
     }
 
     @Override
@@ -318,7 +320,6 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
     @Override
     public byte[] getBytes() {
         synchronized (storage) {
-
             byte[] ids = storage.getBlockIds();
             byte[] data = storage.getBlockData();
 
@@ -326,39 +327,37 @@ public class ChunkSection implements cn.nukkit.level.format.ChunkSection {
             int numberOfStores = 1;//TODO Support Multi Layer...
             stream.putByte((byte) numberOfStores);
 
-            ArrayList<Integer> palettes = new ArrayList<Integer>(10);
+            ArrayList<Integer> palettes = new ArrayList<>(4096);
             byte[] blocks = this.getIdArray();
             NibbleArray metas = new NibbleArray(this.getDataArray());
             byte[] indexes = new byte[blocks.length];
-            for (int i = 0; i < numberOfStores; i++) {
-                palettes.clear();
 
-                stream.putByte((byte) ((8 << 1) | 1));
+            stream.putByte((byte) ((8 << 1) | 1));
 
-                int index = 0;
-                int pHash = 0xffffffff;
-                for (int bl = 0; bl < blocks.length; bl++) {
-                    byte bid = blocks[bl];
-                    byte meta = 0;// metas.get(bl);
-                    int hash = GlobalBlockPalette.getOrCreateRuntimeId(bid, meta);
-                    if (hash != pHash) {
-                        index = palettes.indexOf(hash);
-                        if (index == -1) {
-                            palettes.add(hash);
-                        }
-                        index = palettes.indexOf(hash);
+            int index = 0;
+            int pHash = 0xffffffff;
+            for (int bl = 0; bl < blocks.length; bl++) {
+                int bid = Byte.toUnsignedInt(blocks[bl]);
+                byte meta = metas.get(bl);
+                int hash = GlobalBlockPalette.getOrCreateRuntimeId(bid, meta);
+                if (hash != pHash) {
+                    index = palettes.indexOf(hash);
+                    if (index == -1) {
+                        palettes.add(hash);
                     }
-
-                    indexes[bl] = (byte) index;
-                    pHash = hash;
+                    index = palettes.indexOf(hash);
                 }
 
-                stream.put(indexes);
+                indexes[bl] = (byte) index;
+                pHash = hash;
+            }
 
-                stream.putVarInt(palettes.size());
-                for (int val : palettes) {
-                    stream.putVarInt(val);
-                }
+            stream.put(indexes);
+
+            stream.putVarInt(palettes.size());
+            Iterator<Integer> it = palettes.iterator();
+            while (it.hasNext()) {
+                stream.putVarInt(it.next());
             }
 
             return stream.getBuffer();
