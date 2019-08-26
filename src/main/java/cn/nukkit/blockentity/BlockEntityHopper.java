@@ -259,7 +259,7 @@ public class BlockEntityHopper extends BlockEntitySpawnable implements Inventory
         boolean pickedUpItem = false;
 
         for (Entity entity : this.level.getCollidingEntities(this.pickupArea)) {
-            if (!entity.isClosed() && !(entity instanceof EntityItem)) {
+            if (entity.isClosed() || !(entity instanceof EntityItem)) {
                 continue;
             }
 
@@ -359,7 +359,7 @@ public class BlockEntityHopper extends BlockEntitySpawnable implements Inventory
                                 item.count--;
                                 pushedItem = true;
                             }
-                        } else if (inventory.getSmelting().getId() == itemToAdd.getId() && smelting.count < smelting.getMaxStackSize()) {
+                        } else if (inventory.getSmelting().getId() == itemToAdd.getId() && inventory.getSmelting().getDamage() == itemToAdd.getDamage() && smelting.count < smelting.getMaxStackSize()) {
                             event = new InventoryMoveItemEvent(this.inventory, inventory, this, itemToAdd, InventoryMoveItemEvent.Action.SLOT_CHANGE);
                             this.server.getPluginManager().callEvent(event);
 
@@ -381,7 +381,7 @@ public class BlockEntityHopper extends BlockEntitySpawnable implements Inventory
                                 item.count--;
                                 pushedItem = true;
                             }
-                        } else if (fuel.getId() == itemToAdd.getId() && fuel.count < fuel.getMaxStackSize()) {
+                        } else if (fuel.getId() == itemToAdd.getId() && fuel.getDamage() == itemToAdd.getDamage() && fuel.count < fuel.getMaxStackSize()) {
                             event = new InventoryMoveItemEvent(this.inventory, inventory, this, itemToAdd, InventoryMoveItemEvent.Action.SLOT_CHANGE);
                             this.server.getPluginManager().callEvent(event);
 

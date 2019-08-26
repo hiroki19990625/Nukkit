@@ -4,9 +4,12 @@ import cn.nukkit.Nukkit;
 import cn.nukkit.Player;
 import cn.nukkit.Server;
 import cn.nukkit.network.protocol.*;
-import cn.nukkit.utils.Binary;
 import cn.nukkit.utils.BinaryStream;
+import cn.nukkit.utils.Utils;
 import cn.nukkit.utils.Zlib;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.buffer.Unpooled;
+import lombok.extern.log4j.Log4j2;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -17,6 +20,7 @@ import java.util.Set;
  * author: MagicDroidX
  * Nukkit Project
  */
+@Log4j2
 public class Network {
 
     public static final byte CHANNEL_NONE = 0;
@@ -81,7 +85,7 @@ public class Network {
 
                 interfaz.emergencyShutdown();
                 this.unregisterInterface(interfaz);
-                this.server.getLogger().critical(this.server.getLanguage().translateString("nukkit.server.networkError", new String[]{interfaz.getClass().getName(), e.getMessage()}));
+                log.fatal(this.server.getLanguage().translateString("nukkit.server.networkError", new String[]{interfaz.getClass().getName(), Utils.getExceptionMessage(e)}));
             }
         }
     }
@@ -146,7 +150,7 @@ public class Network {
             int count = 0;
             while (stream.offset < len) {
                 count++;
-                if(count >= 500){
+                if (count >= 1000) {
                     player.close("", "Illegal Batch Packet");
                     return;
                 }
@@ -158,7 +162,15 @@ public class Network {
                 if ((pk = this.getPacket(buf[0])) != null) {
                     pk.setBuffer(buf, 1);
 
-                    pk.decode();
+                    try {
+                        pk.decode();
+                    } catch (Exception e) {
+                        log.warn("Unable to decode {} from {}", pk.getClass().getSimpleName(), player.getName());
+                        if (log.isTraceEnabled()) {
+                            log.trace("Dumping Packet\n{}", ByteBufUtil.prettyHexDump(Unpooled.wrappedBuffer(packet.payload)));
+                        }
+                        throw e;
+                    }
 
                     packets.add(pk);
                 }
@@ -167,9 +179,8 @@ public class Network {
             processPackets(player, packets);
 
         } catch (Exception e) {
-            if (Nukkit.DEBUG > 0) {
-                this.server.getLogger().debug("BatchPacket 0x" + Binary.bytesToHexString(packet.payload));
-                this.server.getLogger().logException(e);
+            if (log.isDebugEnabled()) {
+                log.debug("Error whilst decoding batch packet", e);
             }
         }
     }
@@ -248,7 +259,7 @@ public class Network {
         this.registerPacket(ProtocolInfo.ENTITY_EVENT_PACKET, EntityEventPacket.class);
         this.registerPacket(ProtocolInfo.ENTITY_FALL_PACKET, EntityFallPacket.class);
         this.registerPacket(ProtocolInfo.EXPLODE_PACKET, ExplodePacket.class);
-        this.registerPacket(ProtocolInfo.FULL_CHUNK_DATA_PACKET, FullChunkDataPacket.class);
+        this.registerPacket(ProtocolInfo.FULL_CHUNK_DATA_PACKET, LevelChunkPacket.class);
         this.registerPacket(ProtocolInfo.GAME_RULES_CHANGED_PACKET, GameRulesChangedPacket.class);
         this.registerPacket(ProtocolInfo.HURT_ARMOR_PACKET, HurtArmorPacket.class);
         this.registerPacket(ProtocolInfo.INTERACT_PACKET, InteractPacket.class);
@@ -309,11 +320,14 @@ public class Network {
         this.registerPacket(ProtocolInfo.NETWORK_CHUNK_PUBLISHER_UPDATE_PACKET, NetworkChunkPublisherUpdatePacket.class);
         this.registerPacket(ProtocolInfo.AVAILABLE_ENTITY_IDENTIFIERS_PACKET, AvailableEntityIdentifiersPacket.class);
         this.registerPacket(ProtocolInfo.LEVEL_SOUND_EVENT_PACKET_V2, LevelSoundEventPacket.class);
+        this.registerPacket(ProtocolInfo.SCRIPT_CUSTOM_EVENT_PACKET, ScriptCustomEventPacket.class);
         this.registerPacket(ProtocolInfo.SPAWN_PARTICLE_EFFECT_PACKET, SpawnParticleEffectPacket.class);
         this.registerPacket(ProtocolInfo.BIOME_DEFINITION_LIST_PACKET, BiomeDefinitionListPacket.class);
         this.registerPacket(ProtocolInfo.LEVEL_SOUND_EVENT_PACKET, LevelSoundEventPacket.class);
+        this.registerPacket(ProtocolInfo.LEVEL_EVENT_GENERIC_PACKET, LevelEventGenericPacket.class);
         this.registerPacket(ProtocolInfo.LECTERN_UPDATE_PACKET, LecternUpdatePacket.class);
         this.registerPacket(ProtocolInfo.VIDEO_STREAM_CONNECT_PACKET, VideoStreamConnectPacket.class);
+        this.registerPacket(ProtocolInfo.CLIENT_CACHE_STATUS_PACKET, ClientCacheStatusPacket.class);
         this.registerPacket(ProtocolInfo.MAP_CREATE_LOCKED_COPY_PACKET, MapCreateLockedCopyPacket.class);
         this.registerPacket(ProtocolInfo.ON_SCREEN_TEXTURE_ANIMATION_PACKET, OnScreenTextureAnimationPacket.class);
     }
